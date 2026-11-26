@@ -1,0 +1,6 @@
+services:
+  web:
+    command: pnpm dev --host 0.0.0.0 --port "$PORT" --strictPort
+    portal:
+      title: 任务大战僵尸
+      description: 开发预览。存档保存在浏览器 localStorage 里，按网址区分。
