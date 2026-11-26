@@ -18,6 +18,8 @@ export type Action =
   | { type: 'deleteGrave'; id: string }
   | { type: 'dismissBriefing' }
   | { type: 'updateSettings'; patch: Partial<Settings> }
+  /** Replaces the whole save, from the cloud or an imported file. */
+  | { type: 'loadState'; state: GameState }
 
 export function initialState(): GameState {
   return {
@@ -213,5 +215,8 @@ export function reduce(state: GameState, action: Action): GameState {
 
     case 'updateSettings':
       return { ...state, settings: sanitizeSettings({ ...state.settings, ...action.patch }) }
+
+    case 'loadState':
+      return action.state
   }
 }

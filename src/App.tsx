@@ -13,6 +13,7 @@ import { SettingsDialog } from './ui/SettingsDialog'
 import { playSound, type SoundName } from './ui/sound'
 import { Heart, SpriteDefs, Sun } from './ui/sprites'
 import { TaskDialog } from './ui/TaskDialog'
+import { useCloudSync } from './ui/useCloudSync'
 
 const APP_TITLE = '任务大战僵尸'
 const TOAST_MS = 5000
@@ -44,9 +45,14 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
+  const cloud = useCloudSync(state, rawDispatch)
+  const { markChanged } = cloud
+
+  /** For the player's own changes, which are the ones that go to the cloud. */
   function dispatch(action: Action) {
     const sound = SOUNDS[action.type]
     if (sound && settings.sound) playSound(sound)
+    markChanged()
     rawDispatch(action)
   }
 
@@ -62,6 +68,7 @@ export default function App() {
     if (!focus) return
     const timer = setTimeout(
       () => {
+        markChanged()
         rawDispatch({ type: 'stopFocus', now: Date.now() })
         if (settings.sound) playSound('bell')
         setToast(`${focus.durationMin} 分钟火力打完：${focusTitle ?? ''}。休息一下，再看计划里的下一只。`)
@@ -69,7 +76,7 @@ export default function App() {
       Math.max(0, focus.startedAt + focus.durationMin * 60_000 - Date.now()),
     )
     return () => clearTimeout(timer)
-  }, [focus, focusTitle, settings.sound])
+  }, [focus, focusTitle, settings.sound, markChanged])
 
   useEffect(() => {
     document.title = focus ? `${formatClock(focusLeftMs)} ${focusTitle ?? ''}` : APP_TITLE
@@ -188,7 +195,12 @@ export default function App() {
         />
       )}
       {settingsOpen && (
-        <SettingsDialog settings={settings} graves={graves} dispatch={dispatch} onClose={() => setSettingsOpen(false)} />
+        <SettingsDialog
+          state={state}
+          cloud={cloud}
+          dispatch={dispatch}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
     </div>
   )

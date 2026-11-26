@@ -39,7 +39,20 @@ pnpm build    # 生成单文件 dist/index.html，双击即可打开，无需服
 pnpm test     # 排期、解析、状态规则的测试
 ```
 
-存档在浏览器的 localStorage 里（键 `pvz-todo:v1`），按打开的网址区分，没有后端。
+存档在浏览器的 localStorage 里（键 `pvz-todo:v1`），按打开的网址区分。设置里可以导出 / 导入 JSON 备份。
+
+## 云同步
+
+`worker/` 是一个 Cloudflare Worker，把整份存档存进 KV。设置里点“开启云同步”生成同步码，在别的设备输入同一个码就共用一份存档。同步码就是钥匙，KV 里只存它的哈希。多台设备都改过时，以最后一次改动为准。
+
+```
+cd worker && pnpm install
+pnpm wrangler kv namespace create STATES   # 把输出的 id 填进 wrangler.toml
+pnpm deploy                                 # 记下 https://task-vs-zombies-sync.<子域>.workers.dev
+cd .. && VITE_SYNC_URL=https://task-vs-zombies-sync.<子域>.workers.dev pnpm build
+```
+
+构建时不设 `VITE_SYNC_URL`，设置里就不显示云同步，只有导出 / 导入。
 
 ## 代码结构
 
@@ -48,5 +61,6 @@ pnpm test     # 排期、解析、状态规则的测试
 - `src/core/game.ts`：全部状态变更（reducer）。
 - `src/core/parse.ts`：快速录入的标记解析。
 - `src/core/dates.ts`：按工作日计算的日期工具。
+- `src/core/storage.ts`、`src/core/sync.ts`、`src/ui/useCloudSync.ts`：本地存档、云同步接口和同步时机。
 - `src/ui/`：草坪、计划面板和各个对话框。
 - `src/ui/scene/`：草坪的 three.js 场景。`LawnScene.ts` 管镜头、动画和把 HTML 标签贴到模型上，`models.ts` 用几何体搭僵尸、豌豆射手、墓碑和房子。

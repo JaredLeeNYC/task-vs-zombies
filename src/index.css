@@ -1059,6 +1059,32 @@ select:disabled {
   color: var(--muted);
 }
 
+.sync {
+  display: grid;
+  gap: 6px;
+}
+
+.sync p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.sync-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.sync-row input:not([hidden]) {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.sync-error {
+  color: var(--danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -26,3 +26,4 @@ dist-ssr
 # Amp thread scratch files
 .amp/in
 .amp/portals/
+.wrangler

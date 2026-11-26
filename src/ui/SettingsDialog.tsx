@@ -1,20 +1,140 @@
 import { useState } from 'react'
+import { dayOf } from '../core/dates'
 import type { Action } from '../core/game'
-import type { Grave, Settings } from '../core/types'
+import { parseState } from '../core/storage'
+import { isSyncCode, newSyncCode } from '../core/sync'
+import type { GameState } from '../core/types'
 import { formatMinutes, formatWeekdays, WEEKDAY_NAMES, ZOMBIE_NAMES } from './format'
 import { Modal } from './Modal'
+import type { SyncStatus, useCloudSync } from './useCloudSync'
 
 /** Monday first. */
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 
 interface SettingsDialogProps {
-  settings: Settings
-  graves: Grave[]
+  state: GameState
+  cloud: ReturnType<typeof useCloudSync>
   dispatch: (action: Action) => void
   onClose: () => void
 }
 
-export function SettingsDialog({ settings, graves, dispatch, onClose }: SettingsDialogProps) {
+function describeSync(status: SyncStatus): string {
+  switch (status.kind) {
+    case 'off':
+      return '未开启'
+    case 'syncing':
+      return '同步中…'
+    case 'synced':
+      return `已同步（${new Date(status.at).toLocaleTimeString()}）`
+    case 'error':
+      return `同步失败：${status.message}`
+  }
+}
+
+function exportSave(state: GameState) {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `任务大战僵尸-${dayOf(new Date())}.json`
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
+function SaveSection({ state, cloud, dispatch }: Omit<SettingsDialogProps, 'onClose'>) {
+  const [typedCode, setTypedCode] = useState('')
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function importSave(file: File) {
+    try {
+      const imported = parseState(JSON.parse(await file.text()))
+      if (imported === null) return setMessage('这个文件不是任务大战僵尸的存档。')
+      if (!confirm(`用 ${file.name} 覆盖现在的全部任务和设置？`)) return
+      dispatch({ type: 'loadState', state: imported })
+      dispatch({ type: 'startDay', now: Date.now() })
+      setMessage(`已导入 ${imported.tasks.length} 个任务。`)
+    } catch {
+      setMessage('读不了这个文件，它不是有效的 JSON。')
+    }
+  }
+
+  return (
+    <div className="field field-wide">
+      <span>存档</span>
+      {cloud.enabled &&
+        (cloud.code === null ? (
+          <div className="sync">
+            <p className="muted">开启云同步后，在别的设备输入同一个同步码就能看到同一份任务。同步码就是钥匙，别发给别人。</p>
+            <div className="sync-row">
+              <button className="btn btn-fire" onClick={() => cloud.setCode(newSyncCode(), true)}>
+                开启云同步
+              </button>
+              <input
+                value={typedCode}
+                placeholder="或输入已有的同步码"
+                aria-label="已有的同步码"
+                onChange={(event) => setTypedCode(event.target.value.trim())}
+              />
+              <button
+                className="btn"
+                disabled={!isSyncCode(typedCode)}
+                onClick={() => {
+                  if (confirm('用云端的存档替换这台设备上的任务？')) cloud.setCode(typedCode)
+                }}
+              >
+                连接
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="sync">
+            <p className={cloud.status.kind === 'error' ? 'sync-error' : 'muted'}>云同步：{describeSync(cloud.status)}</p>
+            <div className="sync-row">
+              <input readOnly value={cloud.code} aria-label="同步码" onFocus={(event) => event.target.select()} />
+              <button
+                className="btn"
+                onClick={() => void navigator.clipboard.writeText(cloud.code ?? '').then(() => setMessage('同步码已复制。'))}
+              >
+                复制
+              </button>
+              <button className="btn" onClick={() => void cloud.syncNow()}>
+                立即同步
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  if (confirm('在这台设备上关闭云同步？任务会留在本机，云端存档也不会删除。')) cloud.setCode(null)
+                }}
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        ))}
+      <div className="sync-row">
+        <button className="btn" onClick={() => exportSave(state)}>
+          导出备份
+        </button>
+        <label className="btn">
+          导入备份
+          <input
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (file) void importSave(file)
+            }}
+          />
+        </label>
+      </div>
+      {message !== null && <p className="muted">{message}</p>}
+    </div>
+  )
+}
+
+export function SettingsDialog({ state, cloud, dispatch, onClose }: SettingsDialogProps) {
+  const { settings, graves } = state
   // Edited as text and saved in one go, so half-typed numbers are never clamped.
   const [focusMin, setFocusMin] = useState(String(settings.focusMin))
   const [pomodoroMin, setPomodoroMin] = useState(String(settings.pomodoroMin))
@@ -145,6 +265,8 @@ export function SettingsDialog({ settings, graves, dispatch, onClose }: Settings
             </ul>
           )}
         </div>
+
+        <SaveSection state={state} cloud={cloud} dispatch={dispatch} />
       </div>
 
       <footer className="modal-actions">
